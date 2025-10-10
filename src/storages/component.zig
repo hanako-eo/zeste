@@ -14,22 +14,26 @@ pub fn ComponentStorageUnmanaged(comptime T: type) type {
         pub const empty: Self = .{};
 
         pub fn from_owned(slice: []T) Self {
-            return Self{ .items = slice.ptr, .capacity = slice.len };
+            return Self{
+                .items = slice.ptr,
+                .capacity = slice.len,
+            };
         }
 
-        pub fn to_erased(self: *Self) ErasedComponentStorageUnmanaged {
+        pub fn to_erased(self: *Self, world: *const lib.World) ErasedComponentStorageUnmanaged {
             const erased = ErasedComponentStorageUnmanaged{
-                .ptr = self.items[0..self.capacity],
+                .ptr = @ptrCast(self.items),
+                .capacity = self.capacity,
+                .info = lib.TypeInfo.of(T, world),
             };
             self.* = empty;
             return erased;
         }
 
         /// Release all allocated memory.
-        pub fn deinit(self: Self, allocator: Allocator) void {
-            if (self.capacity > 0 and @sizeOf(T) > 0) {
-                allocator.free(self.allocated_slice());
-            }
+        pub fn deinit(self: *Self, allocator: Allocator) void {
+            allocator.free(self.allocated_slice());
+            self.* = undefined;
         }
 
         /// Extends the list by 1 element. Allocates more memory as necessary.
@@ -143,14 +147,24 @@ pub fn ComponentStorageUnmanaged(comptime T: type) type {
 pub const ErasedComponentStorageUnmanaged = struct {
     const Self = @This();
 
-    ptr: []anyopaque = &.{},
+    ptr: *anyopaque = &.{},
+    capacity: usize = 0,
+    info: lib.TypeInfo,
 
     pub fn cast(self: Self, comptime Component: type) ComponentStorageUnmanaged(Component) {
-        return ComponentStorageUnmanaged(Component).from_owned(@ptrCast(self.ptr));
+        return ComponentStorageUnmanaged(Component){
+            .items = @as([*]Component, @ptrCast(self.ptr)),
+            .capacity = self.capacity,
+        };
     }
 
     pub fn deinit(self: *Self, allocator: Allocator) void {
-        allocator.free(self.slice);
+        allocator.rawFree(
+            @as([*]u8, @ptrCast(self.ptr))[0..(self.capacity * self.info.layout.size)],
+            self.info.layout.alignment,
+            @returnAddress(),
+        );
+        self.* = undefined;
     }
 };
 
@@ -223,4 +237,23 @@ test "swap_remove" {
     try std.testing.expectEqual(2, len);
     try std.testing.expectEqual(2, component.items[0]);
     try std.testing.expectEqual(0, popped_item);
+}
+
+test "ErasedComponentStorageUnmanaged.deinit correctly" {
+    var gpa = CounterAllocator.init(testing.allocator);
+    const allocator = gpa.allocator();
+
+    var world = lib.World.init(allocator);
+
+    var len: usize = 0;
+    var component = ComponentStorageUnmanaged(u32).empty;
+
+    try component.append(allocator, 0, &len);
+
+    try std.testing.expectEqual(1, gpa.counters.alloc);
+
+    var erased = component.to_erased(&world);
+    erased.deinit(allocator);
+
+    try std.testing.expectEqual(1, gpa.counters.free);
 }

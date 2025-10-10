@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const lib = @import("./root.zig");
 const utils = @import("./utils.zig");
 
 /// Compute an hash for a given type `T`
@@ -25,6 +26,17 @@ pub fn hash_compound(comptime Ts: anytype) u64 {
     comptime var hash: u64 = 0;
     inline for (utils.types(Ts)) |T| {
         hash = comptime mix2(hash, hash_type(T));
+    }
+
+    return hash;
+}
+
+/// Combine all hashes of the `TypeInfo`s
+pub fn hash_compound_info(ids: []const lib.TypeInfo) u64 {
+    // hash all type and apply a mix on its
+    var hash: u64 = 0;
+    for (ids) |id| {
+        hash = mix2(hash, id.hash);
     }
 
     return hash;
