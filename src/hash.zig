@@ -3,8 +3,10 @@ const std = @import("std");
 const lib = @import("./root.zig");
 const utils = @import("./utils.zig");
 
+const TypeId = lib.TypeInfo.Id;
+
 /// Compute an hash for a given type `T`
-pub fn hash_type(comptime T: type) u64 {
+pub fn hash_type(comptime T: type) TypeId {
     const type_name = @typeName(T);
 
     return std.hash.Wyhash.hash(0, type_name);
@@ -21,7 +23,7 @@ pub fn hash_type(comptime T: type) u64 {
 /// // or
 /// const hash = hash_compound([_]type{ usize, name });
 /// ```
-pub fn hash_compound(comptime Ts: anytype) u64 {
+pub fn hash_compound(comptime Ts: anytype) TypeId {
     // hash all type and apply a mix on its
     comptime var hash: u64 = 0;
     inline for (utils.types(Ts)) |T| {
@@ -32,7 +34,7 @@ pub fn hash_compound(comptime Ts: anytype) u64 {
 }
 
 /// Combine all hashes of the `TypeInfo`s
-pub fn hash_compound_info(ids: []const lib.TypeInfo) u64 {
+pub fn hash_compound_info(ids: []const lib.TypeInfo) TypeId {
     // hash all type and apply a mix on its
     var hash: u64 = 0;
     for (ids) |id| {
@@ -42,7 +44,7 @@ pub fn hash_compound_info(ids: []const lib.TypeInfo) u64 {
     return hash;
 }
 
-inline fn mix2(a: u64, b: u64) u64 {
+inline fn mix2(a: TypeId, b: TypeId) TypeId {
     const x = @as(u128, a) *% b;
     return @as(u64, @truncate(x)) ^ @as(u64, @truncate(x >> 64));
 }
@@ -56,7 +58,7 @@ test hash_type {
 
 test hash_compound {
     const mix = struct {
-        inline fn call(args: anytype) u64 {
+        inline fn call(args: anytype) TypeId {
             var hash: u64 = 0;
             inline for (std.meta.fields(@TypeOf(args))) |field| {
                 hash = mix2(hash, @field(args, field.name));

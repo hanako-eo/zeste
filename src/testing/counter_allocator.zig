@@ -26,19 +26,19 @@ fn alloc(context: *anyopaque, len: usize, alignment: std.mem.Alignment, ret_addr
 
 fn resize(context: *anyopaque, memory: []u8, alignment: std.mem.Alignment, new_len: usize, ret_addr: usize) bool {
     const self: *Self = @ptrCast(@alignCast(context));
-    self.counters.alloc += 1;
+    self.counters.resize += 1;
     return self.base_allocator.rawResize(memory, alignment, new_len, ret_addr);
 }
 
 fn remap(context: *anyopaque, memory: []u8, alignment: std.mem.Alignment, new_len: usize, ret_addr: usize) ?[*]u8 {
     const self: *Self = @ptrCast(@alignCast(context));
-    self.counters.alloc += 1;
+    self.counters.remap += 1;
     return self.base_allocator.rawRemap(memory, alignment, new_len, ret_addr);
 }
 
 fn free(context: *anyopaque, memory: []u8, alignment: std.mem.Alignment, ret_addr: usize) void {
     const self: *Self = @ptrCast(@alignCast(context));
-    self.counters.alloc += 1;
+    self.counters.free += 1;
     return self.base_allocator.rawFree(memory, alignment, ret_addr);
 }
 
